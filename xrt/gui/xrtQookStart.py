@@ -23,6 +23,13 @@ Then run this python file to start xrtQook."""
 # # 'customMirrorArg1', 'customMirrorArg2' ... are parameters of
 # # CustomMirror.__init__() that are described in init's docstrings.
 
+import xrt.backends.raycing.oes as roe
+# from customOEs import HyperboloidalMirrorParam
+# roe.CustomMirror = HyperboloidalMirrorParam
+roe.__allSectioned__['My custom OEs'] = ('HyperboloidalMirrorParam',)
+roe.allArguments.extend(['customMirrorArg1', 'customMirrorArg2'])
+# 'customMirrorArg1', 'customMirrorArg2' ... are parameters of
+# CustomMirror.__init__() that are described in init's docstrings.
 
 if __name__ == '__main__':
     if any('spyder' in name.lower() for name in os.environ):
