@@ -1800,6 +1800,8 @@ class XYCPlot(object):
                 #if os.path.isfile(self.persistentName):
                 #    os.remove(self.persistentName)
                 io.savemat(pn, vars(saved))
+            if pn.endswith('npy'):
+                np.save(pn,np.max(saved.total2D))			
             else:
                 f = open(pn, 'wb')
                 pickle.dump(saved, f, protocol=2)

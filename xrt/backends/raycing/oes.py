@@ -1948,6 +1948,7 @@ class WoltermonolithicMirrorParam(OE):
         self.Lmi = kwargs.pop('Lmi', 1)
         self.M = kwargs.pop('M', 1)
         self.tNA = kwargs.pop('tNA', 1)
+        self.f1 = kwargs.pop('f1', None)
 
         self.isCylindrical = kwargs.pop('isCylindrical', False)
         return kwargs
@@ -1957,6 +1958,15 @@ class WoltermonolithicMirrorParam(OE):
                             pitch=self.pitch, roll=self.roll+self.positionRoll,
                             yaw=self.yaw, skip_xyz=True)
         raycing.virgin_local_to_global(self.bl, lb, self.center, skip_xyz=True)
+
+    @property
+    def f1(self):
+        return self._f1
+
+    @f1.setter
+    def f1(self, f1):
+        self._f1 = f1
+        self._rest_parameters()
 
     @property
     def Wd(self):
@@ -2029,22 +2039,31 @@ class WoltermonolithicMirrorParam(OE):
 
     def _rest_parameters(self):
         """This method allows re-assignment of *p*, *q*, *pitch*, *f1* and *f2*
-        from outside of the constructor.
+        from outside of the constructor. *xf*, *xd*, *xu*, *rd*, *ru*, *xfp* are 
+        Intermediate parameters. See https://doi.org/10.1117/12.2529039 for the 
+        physical significance
         """
-        if not all([hasattr(self, v) for v in
-                    ['_p', '_q', '_f1', '_f2', '_pAxis',
-                     '_pitchVal', '_roll', '_yaw',
-                     '_positionRoll', 'rotationSequence']]):
-            return
+        xf=self.Lsf
+        xd=xf-self.Wd
+        xu = xd- self.Lmi
+        rd = self.Wd*np.tan(self.tNA)
+        ru = xu*np.tan(self.tNA)/self.M
+        xfp = (ru*xd-rd*xu)/(ru-rd)
+        #conic curve parameters
+        self.ellipseA = (np.sqrt(xu**2+ru**2)+np.sqrt((xu-xfp)**2+ru**2))/2
+        self.ellipseB = np.sqrt(self.ellipseA**2-(xfp/2)**2)
+        self.hyperboloidA = (np.sqrt((xd-xfp)**2+rd**2)-np.sqrt((xd-xf)**2+rd**2))/2
+        self.hyperboloidB = np.sqrt((xf-xfp)**2/4-self.hyperboloidA**2)
+        
         lbn = rs.Beam(nrays=1)
         lbn.a[:], lbn.b[:], lbn.c[:] = 0, 0, 1
         self._to_global(lbn)
         normal = lbn.a[0], lbn.b[0], lbn.c[0]
 
-        if self.f1 is not None:
-            p = (sum((x-y)**2 for x, y in zip(self.center, self.f1)))**0.5
+        if self.ef1 is not None:
+            self.p = (sum((x-y)**2 for x, y in zip(self.center, self.ef1)))**0.5
             axis = [c-f for c, f in zip(self.center, self.f1)]
-            self._p = p
+            self._p = self.p
         else:
             axis = self.pAxis if self.pAxis else [0, 1, 0]
 
@@ -2052,9 +2071,13 @@ class WoltermonolithicMirrorParam(OE):
         sintheta = sum([a*n for a, n in zip(axis, normal)]) / norm
         absPitch = abs(np.arcsin(sintheta))
 
-        if self.f2 is not None:
-            q = (sum((x-y)**2 for x, y in zip(self.center, self.f2)))**0.5
-            self._q = q
+        # point of curve intersection and s0
+        self.s0 = (4*self.hyperboloidA**2-4*self.hyperboloidA*self.ellipseA-xf**2+
+                   (1-self.hyperboloidA/self.ellipseA)*xfp**2)/(
+                       2*xfp*(1-self.hyperboloidA/self.ellipseA)-2*xf)-xfp/2
+
+        self.q = 2*self.ellipseA - self._p
+        self._q = self.q
 
         # gamma is angle between the major axis and the mirror surface
         if self.p and self.q:
@@ -2065,30 +2088,7 @@ class WoltermonolithicMirrorParam(OE):
             # (y0, z0) is the ellipse center in local coordinates
             self.y0 = (self.q - self.p)/2. * np.cos(absPitch)
             self.z0 = (self.q + self.p)/2. * np.sin(absPitch)
-            self.ellipseA = (self.q + self.p)/2.
-            self.ellipseB = np.sqrt(self.q * self.p) * np.sin(absPitch)
 
-    def get_surface_limits(self):
-        """Returns surface_limits."""
-        OE.get_surface_limits(self)
-        cs = self.curSurface
-        self.surfPhysX2 = self.limPhysX2
-        if self.limPhysX2 is not None:
-            if raycing.is_sequence(self.limPhysX2[0]):
-                self.surfPhysX2 = (self.limPhysX2[0][cs],
-                                   self.limPhysX2[1][cs])
-        self.surfPhysY2 = self.limPhysY2
-        if self.limPhysY2 is not None:
-            if raycing.is_sequence(self.limPhysY2[0]):
-                self.surfPhysY = (self.limPhysY2[0][cs], self.limPhysY2[1][cs])
-        self.surfOptX2 = self.limOptX2
-        if self.limOptX2 is not None:
-            if raycing.is_sequence(self.limOptX2[0]):
-                self.surfOptX = (self.limOptX2[0][cs], self.limOptX2[1][cs])
-        self.surfOptY2 = self.limOptY2
-        if self.limOptY2 is not None:
-            if raycing.is_sequence(self.limOptY2[0]):
-                self.surfOptY = (self.limOptY2[0][cs], self.limOptY2[1][cs])
 
     def xyz_to_param(self, x, y, z):
         yNew, zNew = raycing.rotate_x(y - self.y0, z - self.z0, self.cosGamma,
@@ -2103,112 +2103,42 @@ class WoltermonolithicMirrorParam(OE):
         return x, yNew + self.y0, zNew + self.z0
 
     def local_r(self, s, phi):
-        r = self.ellipseB * np.sqrt(abs(1 - s**2 / self.ellipseA**2))
+        r = np.where(s<self.s0, self.ellipseB * np.sqrt(abs(1 - s**2 / self.ellipseA**2)),
+                     self.hyperboloidB * np.sqrt(abs(s**2 / self.hyperboloidA**2 - 1)))
         if self.isCylindrical:
             r /= abs(np.cos(phi))
         return np.where(abs(phi) > np.pi/2, r, np.ones_like(phi)*1e20)
 
     def local_n(self, s, phi):
-        A2s2 = np.array(self.ellipseA**2 - s**2)
-        A2s2[A2s2 <= 0] = 1e22
-        nr = -self.ellipseB / self.ellipseA * s / np.sqrt(A2s2)
-        norm = np.sqrt(nr**2 + 1)
-        b = nr / norm
-        if self.isCylindrical:
-            a = np.zeros_like(phi)
-            c = 1. / norm
+        if s<self.s0:
+            A2s2 = np.array(self.ellipseA**2 - s**2)
+            A2s2[A2s2 <= 0] = 1e22
+            nr = -self.ellipseB / self.ellipseA * s / np.sqrt(A2s2)
+            norm = np.sqrt(nr**2 + 1)
+            b = nr / norm
+            if self.isCylindrical:
+                a = np.zeros_like(phi)
+                c = 1. / norm
+            else:
+                a = -np.sin(phi) / norm
+                c = -np.cos(phi) / norm
+            bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
+            return [a, bNew, cNew]
         else:
-            a = -np.sin(phi) / norm
-            c = -np.cos(phi) / norm
-        bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
-        return [a, bNew, cNew]
+            A2s2 = np.array(s**2-self.hyperboloidA**2)
+            A2s2[A2s2 <= 0] = 1e22
+            nr = self.hyperboloidB / self.hyperboloidA * s / np.sqrt(A2s2)
+            norm = np.sqrt(nr**2 + 1)
+            b = nr / norm
+            if self.isCylindrical:
+                a = np.zeros_like(phi)
+                c = 1. / norm
+            else:
+                a = -np.sin(phi) / norm
+                c = -np.cos(phi) / norm
+            bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
+            return [a, bNew, cNew]            
 
-    def double_reflect(self, beam=None, needLocal=True,
-                       fromVacuum1=True, fromVacuum2=True,
-                       returnLocalAbsorbed=None):
-        """
-        Returns the reflected beam in global and two local (if *needLocal*
-        is true) systems.
-
-        *returnLocalAbsorbed*: None or int
-            If not None, returns the absorbed intensity in local beam. If
-            equals zero, total absorbed intensity is return in the last local
-            beam, otherwise the N-th local beam returns the
-            absorbed intensity on N-th surface of the optical element.
-
-
-        .. Returned values: beamGlobal, beamLocal1, beamLocal2
-        """
-        self.footprint = []
-        if self.bl is not None:
-            self.bl.auto_align(self, beam)
-        self.get_orientation()
-        gb = rs.Beam(copyFrom=beam)  # output beam in global coordinates
-        if needLocal:
-            lo1 = rs.Beam(copyFrom=beam)  # output beam in local coordinates
-        else:
-            lo1 = gb
-
-        good1 = beam.state > 0
-        if good1.sum() == 0:
-            return gb, lo1, lo1
-        raycing.global_to_virgin_local(self.bl, beam, lo1, self.center, good1)
-        self._reflect_local(
-            good1, lo1, gb, self.pitch + self.bragg,
-            self.roll + self.positionRoll + self.cryst1roll, self.yaw, self.dx,
-            local_z=self.local_z1, local_n=self.local_n1,
-            fromVacuum=fromVacuum1, material=self.material)
-        goodAfter1 = (gb.state == 1) | (gb.state == 2)
-# not intersected rays remain unchanged except their state:
-        notGood = ~goodAfter1
-        if notGood.sum() > 0:
-            rs.copy_beam(gb, beam, notGood)
-
-        gb2 = rs.Beam(copyFrom=gb)
-        if needLocal:
-            lo2 = rs.Beam(copyFrom=gb2)  # output beam in local coordinates
-        else:
-            lo2 = gb2
-        good2 = goodAfter1
-        if hasattr(self, 't'):  # is instance of Plate
-            gb2.state[~good2] = self.lostNum
-        if good2.sum() == 0:
-            return gb2, lo1, lo2
-        self._reflect_local(
-            good2, lo2, gb2,
-            -self.pitch - self.bragg + self.cryst2pitch + self.cryst2finePitch,
-            self.roll + self.cryst2roll + self.positionRoll, -self.yaw,
-            -self.dx, self.cryst2longTransl, -self.cryst2perpTransl,
-            local_z=self.local_z2, local_n=self.local_n2,
-            fromVacuum=fromVacuum2, material=self.material2, is2ndXtal=True)
-        goodAfter2 = (gb2.state == 1) | (gb2.state == 2)
-# in global coordinate system:
-        raycing.virgin_local_to_global(self.bl, gb2, self.center, goodAfter2)
-# not intersected rays remain unchanged except their state:
-        notGood = ~goodAfter2
-        if hasattr(self, 't'):  # is instance of Plate
-            gb2.state[notGood] = self.lostNum
-        if notGood.sum() > 0:
-            rs.copy_beam(gb2, beam, notGood)
-
-        if returnLocalAbsorbed is not None:
-            if returnLocalAbsorbed == 0:
-                absorbedLb = rs.Beam(copyFrom=lo2)
-                absorbedLb.absorb_intensity(beam)
-                lo2 = absorbedLb
-            elif returnLocalAbsorbed == 1:
-                absorbedLb = rs.Beam(copyFrom=lo1)
-                absorbedLb.absorb_intensity(beam)
-                lo1 = absorbedLb
-            elif returnLocalAbsorbed == 1:
-                absorbedLb = rs.Beam(copyFrom=lo2)
-                absorbedLb.absorb_intensity(lo1)
-                lo2 = absorbedLb
-        lo2.parentId = self.name
-        raycing.append_to_flow(self.double_reflect, [gb2, lo1, lo2],
-                               inspect.currentframe())
-
-        return gb2, lo1, lo2  # in global and local(lo1 and lo2) coordinates
 class HyperboloidalMirrorParam(OE):
     """The hyperboloidal mirror is implemented as a parametric surface. The
     parameterization is the following: *s* - is local coordinate along the
