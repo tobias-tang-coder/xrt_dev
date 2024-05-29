@@ -1949,7 +1949,6 @@ class WoltermonolithicMirrorParam(OE):
         self.M = kwargs.pop('M', 1)
         self.tNA = kwargs.pop('tNA', 1)
         self.f1 = kwargs.pop('f1', None)
-
         self.isCylindrical = kwargs.pop('isCylindrical', False)
         return kwargs
     
@@ -1959,83 +1958,6 @@ class WoltermonolithicMirrorParam(OE):
                             yaw=self.yaw, skip_xyz=True)
         raycing.virgin_local_to_global(self.bl, lb, self.center, skip_xyz=True)
 
-    @property
-    def f1(self):
-        return self._f1
-
-    @f1.setter
-    def f1(self, f1):
-        self._f1 = f1
-        self._rest_parameters()
-
-    @property
-    def Wd(self):
-        return self._Wd
-
-    @Wd.setter
-    def Wd(self, Wd):
-        self._Wd = Wd
-        self._rest_parameters()
-
-    @property
-    def Lsf(self):
-        return self._Lsf
-
-    @Lsf.setter
-    def Lsf(self, Lsf):
-        self._Lsf = Lsf
-        self._rest_parameters()
-    
-    @property
-    def Lmi(self):
-        return self._Lmi
-
-    @Lmi.setter
-    def Lmi(self, Lmi):
-        self._Lmi = Lmi
-        self._rest_parameters()
-
-    @property
-    def M(self):
-        return self._M
-
-    @M.setter
-    def M(self, M):
-        self._M = M
-        self._rest_parameters()
-
-    @property
-    def tNA(self):
-        return self._tNA
-
-    @tNA.setter
-    def tNA(self, tNA):
-        self._tNA = tNA
-        self._rest_parameters()
-
-    @property
-    def limPhysX2(self):
-        return self._limPhysX2
-
-    @limPhysX2.setter
-    def limPhysX2(self, limPhysX2):
-        if limPhysX2 is None:
-            self._limPhysX2 = [-raycing.maxHalfSizeOfOE,
-                               raycing.maxHalfSizeOfOE]
-        else:
-            self._limPhysX2 = limPhysX2
-
-    @property
-    def limPhysY2(self):
-        return self._limPhysY2
-
-    @limPhysY2.setter
-    def limPhysY2(self, limPhysY2):
-        if limPhysY2 is None:
-            self._limPhysY2 = [-raycing.maxHalfSizeOfOE,
-                               raycing.maxHalfSizeOfOE]
-        else:
-            self._limPhysY2 = limPhysY2
 
     def _rest_parameters(self):
         """This method allows re-assignment of *p*, *q*, *pitch*, *f1* and *f2*
@@ -2060,8 +1982,8 @@ class WoltermonolithicMirrorParam(OE):
         self._to_global(lbn)
         normal = lbn.a[0], lbn.b[0], lbn.c[0]
 
-        if self.ef1 is not None:
-            self.p = (sum((x-y)**2 for x, y in zip(self.center, self.ef1)))**0.5
+        if self.f1 is not None:
+            self.p = (sum((x-y)**2 for x, y in zip(self.center, self.f1)))**0.5
             axis = [c-f for c, f in zip(self.center, self.f1)]
             self._p = self.p
         else:
