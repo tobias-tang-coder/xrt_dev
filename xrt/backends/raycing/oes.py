@@ -2000,6 +2000,7 @@ class WoltermonolithicMirrorParam(OE):
 
         self.q = 2*self.ellipseA - self._p
         self._q = self.q
+        self.hyshift = xf/2
 
         # gamma is angle between the major axis and the mirror surface
         if self.p and self.q:
@@ -2025,41 +2026,52 @@ class WoltermonolithicMirrorParam(OE):
         return x, yNew + self.y0, zNew + self.z0
 
     def local_r(self, s, phi):
-        r = np.where(s<self.s0, self.ellipseB * np.sqrt(abs(1 - s**2 / self.ellipseA**2)),
-                     self.hyperboloidB * np.sqrt(abs(s**2 / self.hyperboloidA**2 - 1)))
+        return np.where(s<self.s0,self.local_r_ell(s,phi),self.local_r_hyper(s-self.hyshift,phi))
+
+    def local_r_ell(self, s, phi):    
+        r = self.ellipseB * np.sqrt(abs(1 - s**2 / self.ellipseA**2))
         if self.isCylindrical:
             r /= abs(np.cos(phi))
         return np.where(abs(phi) > np.pi/2, r, np.ones_like(phi)*1e20)
+        
+    def local_r_hyper(self, s, phi):   
+        r = self.hyperboloidB * np.sqrt(abs(s**2 / self.hyperboloidA**2 - 1))
+        if self.isCylindrical:
+            r /= abs(np.cos(phi))
+        return np.where(abs(phi) > np.pi/2, r, np.ones_like(phi)*1e20)            
 
     def local_n(self, s, phi):
-        if s<self.s0:
-            A2s2 = np.array(self.ellipseA**2 - s**2)
-            A2s2[A2s2 <= 0] = 1e22
-            nr = -self.ellipseB / self.ellipseA * s / np.sqrt(A2s2)
-            norm = np.sqrt(nr**2 + 1)
-            b = nr / norm
-            if self.isCylindrical:
-                a = np.zeros_like(phi)
-                c = 1. / norm
-            else:
-                a = -np.sin(phi) / norm
-                c = -np.cos(phi) / norm
-            bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
-            return [a, bNew, cNew]
+        return np.where(s<self.s0,self.local_n_ell(s,phi),self.local_n_hyper(s,phi))
+
+    def local_n_ell(self, s, phi):
+        A2s2 = np.array(self.ellipseA**2 - s**2)
+        A2s2[A2s2 <= 0] = 1e22
+        nr = -self.ellipseB / self.ellipseA * s / np.sqrt(A2s2)
+        norm = np.sqrt(nr**2 + 1)
+        b = nr / norm
+        if self.isCylindrical:
+            a = np.zeros_like(phi)
+            c = 1. / norm
         else:
-            A2s2 = np.array(s**2-self.hyperboloidA**2)
-            A2s2[A2s2 <= 0] = 1e22
-            nr = self.hyperboloidB / self.hyperboloidA * s / np.sqrt(A2s2)
-            norm = np.sqrt(nr**2 + 1)
-            b = nr / norm
-            if self.isCylindrical:
-                a = np.zeros_like(phi)
-                c = 1. / norm
-            else:
-                a = -np.sin(phi) / norm
-                c = -np.cos(phi) / norm
-            bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
-            return [a, bNew, cNew]            
+            a = -np.sin(phi) / norm
+            c = -np.cos(phi) / norm
+        bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
+        return [a, bNew, cNew]
+    
+    def local_n_hyper(self, s, phi):
+        A2s2 = np.array(s**2-self.hyperboloidA**2)
+        A2s2[A2s2 <= 0] = 1e22
+        nr = self.hyperboloidB / self.hyperboloidA * s / np.sqrt(A2s2)
+        norm = np.sqrt(nr**2 + 1)
+        b = nr / norm
+        if self.isCylindrical:
+            a = np.zeros_like(phi)
+            c = 1. / norm
+        else:
+            a = -np.sin(phi) / norm
+            c = -np.cos(phi) / norm
+        bNew, cNew = raycing.rotate_x(b, c, self.cosGamma, -self.sinGamma)
+        return [a, bNew, cNew]            
 
 class HyperboloidalMirrorParam(OE):
     """The hyperboloidal mirror is implemented as a parametric surface. The
