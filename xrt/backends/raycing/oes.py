@@ -2041,7 +2041,7 @@ class WoltermonolithicMirrorParam(OE):
         return np.where(abs(phi) > np.pi/2, r, np.ones_like(phi)*1e20)            
 
     def local_n(self, s, phi):
-        return np.where(s<self.s0,self.local_n_ell(s,phi),self.local_n_hyper(s,phi))
+        return np.where(s<self.s0,self.local_n_ell(s,phi),self.local_n_hyper(s-self.hyshift,phi))
 
     def local_n_ell(self, s, phi):
         A2s2 = np.array(self.ellipseA**2 - s**2)
