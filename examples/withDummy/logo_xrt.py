@@ -16,7 +16,7 @@ import copy
 
 
 def main():
-    logo = plt.imread('logo-python.png')  # load 2D template
+    logo = plt.imread(r'C:\Users\zengguang\Documents\logo-python.png')  # load 2D template
 #    logo = plt.imread('logo_test0.png')  # load 2D template
     logo_mono = logo[:, :, 0] + logo[:, :, 1] + logo[:, :, 2]*2
     logo_blue = copy.deepcopy(logo_mono)
@@ -61,7 +61,7 @@ def main():
         yaxis=xrtp.XYCAxis('', '', fwhmFormatStr=None, bins=logo.shape[0],
                            ppb=1, limits=[0.5, logo.shape[0]+0.5]),
         caxis=xrtp.XYCAxis(
-            '', '', fwhmFormatStr=None, bins=logo.shape[0]/2, ppb=2,
+            '', '', fwhmFormatStr=None, bins=int(logo.shape[0]/2), ppb=2,
             limits=[10, cDatamax*0.8]),
         negative=True, invertColorMap=True,
         aspect='auto')

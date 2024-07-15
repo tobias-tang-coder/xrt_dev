@@ -1297,3 +1297,122 @@ class BeamLine(object):
             if tBeam is not None:
                 calc_weighted_center(tBeam)
         return [rayPath, beamDict, oesDict]
+
+def get_fwhm(beam, bins=256):
+    good = beam.state == 1
+    x0 = beam.x[good]
+    z0 = beam.z[good]
+
+    def fwhm(x,bin):
+        xx, binEdges = np.histogram(x,bin)
+        xxMaxHalf = float(np.max(xx)) * 0.5
+        args = np.where(xx >= xxMaxHalf)
+        iHistFWHMlow = np.min(args)
+        iHistFWHMhigh = np.max(args) + 1
+        histFWHMlow = binEdges[iHistFWHMlow]
+        histFWHMhigh = binEdges[iHistFWHMhigh]
+        new_binEdges = binEdges[:-1]
+        fwhm = histFWHMhigh - histFWHMlow
+        return fwhm   
+    fwhmx = fwhm(x0,bins) 
+    fwhmz = fwhm(z0,bins)
+    np.save('fwhmx_formal_cache.npy',fwhmx)
+    np.save('fwhmz_formal_cache.npy',fwhmz)  
+
+def get_parmeters(beam):
+    good = beam.state == 1
+    beam_x_mean = np.mean(beam.x[good])
+    beam_y_mean = np.mean(beam.y[good])
+    beam_z_mean = np.mean(beam.z[good])
+    beam_xprime_mean = np.mean(beam.a[good])
+    beam_yprime_mean = np.mean(beam.b[good])
+    beam_zprime_mean = np.mean(beam.c[good])
+    print('beam_x_mean', beam_x_mean,'\n','beam_y_mean', beam_y_mean,'\n',
+          'beam_z_mean', beam_z_mean,'\n','beam_xprime_mean', beam_xprime_mean,'\n',
+          'beam_yprime_mean', beam_yprime_mean,'\n','beam_zprime_mean', beam_zprime_mean,'\n')    
+    print(beam.y[good].shape)
+
+
+
+def get_sigma_position(beam, label=''):
+    good = beam.state == 1
+    if "x" in label:
+        x0 = beam.x[good]
+    elif "z" in label:
+        x0 = beam.z[good]
+    else:
+        raise ValueError(
+            'cannot auto-assign data for axis "{0}"!'.format(label))
+    sigma = np.std(beam.x0[good])
+    print('sigma_position', sigma)
+    
+
+def get_sigma_deduced(beam, label='',bins=256):
+    good = beam.state == 1
+    if "x" in label:
+        x0 = beam.x[good]
+        x0prime = beam.a[good]/beam.b[good]
+    elif "z" in label:
+        x0 = beam.z[good]
+        x0prime = beam.c[good]/beam.b[good]
+    else:
+        raise ValueError(
+            'cannot auto-assign data for axis "{0}"!'.format(label))
+    mean = np.mean
+    L = (mean(x0)*mean(x0prime) - mean(x0*x0prime))/(mean(x0prime**2)-mean(x0prime)**2)
+    print('L of %s' % label, L)
+    xnew = x0 + x0prime*L
+    sigma = np.std(xnew)
+    def get_fwhm_deduced(x,bin):
+        xx, binEdges = np.histogram(x,bin)
+        xxMaxHalf = float(np.max(xx)) * 0.5
+        args = np.where(xx >= xxMaxHalf)
+        iHistFWHMlow = np.min(args)
+        iHistFWHMhigh = np.max(args) + 1
+        histFWHMlow = binEdges[iHistFWHMlow]
+        histFWHMhigh = binEdges[iHistFWHMhigh]
+        new_binEdges = binEdges[:-1]
+        fwhm = histFWHMhigh - histFWHMlow
+        print('fwhm:', fwhm)           
+    print('sigma_deduced of %s:' % label, sigma)
+    get_fwhm_deduced(xnew,bins) 
+
+def get_sigmaS_deduced(beam, bins=256):
+    good = beam.state == 1
+    x0 = beam.x[good]
+    x0prime = beam.a[good]/beam.b[good]
+    z0 = beam.z[good]
+    z0prime = beam.c[good]/beam.b[good]
+
+    mean = np.mean
+    L = (mean(x0)*mean(x0prime) + mean(z0)*mean(z0prime) -
+          mean(x0*x0prime+z0*z0prime))/(mean(x0prime**2+z0prime**2)-mean(x0prime)**2-mean(z0prime)**2)
+
+    # print('L', L)
+    # print('L2', L2)
+    xnew = x0 + x0prime*L
+    # sigmax = np.std(xnew)
+    znew = z0 + z0prime*L
+    # sigmaz = np.std(znew)
+    def get_fwhm_deduced(x,bin):
+        xx, binEdges = np.histogram(x,bin)
+        xxMaxHalf = float(np.max(xx)) * 0.5
+        args = np.where(xx >= xxMaxHalf)
+        iHistFWHMlow = np.min(args)
+        iHistFWHMhigh = np.max(args) + 1
+        histFWHMlow = binEdges[iHistFWHMlow]
+        histFWHMhigh = binEdges[iHistFWHMhigh]
+        new_binEdges = binEdges[:-1]
+        fwhm = histFWHMhigh - histFWHMlow
+        return fwhm          
+    # print('sigma_deduced of x:', sigmax)
+    # print('sigma_deduced of z:', sigmaz)    
+    # fwhmx = get_fwhm_deduced(xnew,bins) 
+    # fwhmz = get_fwhm_deduced(znew,bins)
+    # print('fwhm_deduced of x:', fwhmx)
+    # print('fwhm_deduced of z:', fwhmz)
+   
+    fwhmx = get_fwhm_deduced(xnew,bins) 
+    fwhmz = get_fwhm_deduced(znew,bins)
+    np.save('fwhmx_deduced_cache.npy',fwhmx)
+    np.save('fwhmz_deduced_cache.npy',fwhmz)  

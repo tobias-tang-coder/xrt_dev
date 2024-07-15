@@ -1,3 +1,5 @@
+#vscode temp fold
+/.vs
 #Python binaries
 *.pyc
 
