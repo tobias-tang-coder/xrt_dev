@@ -1311,13 +1311,14 @@ def get_fwhm(beam, bins=256):
         iHistFWHMhigh = np.max(args) + 1
         histFWHMlow = binEdges[iHistFWHMlow]
         histFWHMhigh = binEdges[iHistFWHMhigh]
-        new_binEdges = binEdges[:-1]
         fwhm = histFWHMhigh - histFWHMlow
         return fwhm   
     fwhmx = fwhm(x0,bins) 
     fwhmz = fwhm(z0,bins)
     np.save('fwhmx_formal_cache.npy',fwhmx)
     np.save('fwhmz_formal_cache.npy',fwhmz)  
+    # print('fwhm_formal of x:', fwhmx)
+    # print('fwhm_formal of z:', fwhmz)
 
 def get_parmeters(beam):
     good = beam.state == 1
@@ -1402,7 +1403,6 @@ def get_sigmaS_deduced(beam, bins=256):
         iHistFWHMhigh = np.max(args) + 1
         histFWHMlow = binEdges[iHistFWHMlow]
         histFWHMhigh = binEdges[iHistFWHMhigh]
-        new_binEdges = binEdges[:-1]
         fwhm = histFWHMhigh - histFWHMlow
         return fwhm          
     # print('sigma_deduced of x:', sigmax)
@@ -1415,4 +1415,6 @@ def get_sigmaS_deduced(beam, bins=256):
     fwhmx = get_fwhm_deduced(xnew,bins) 
     fwhmz = get_fwhm_deduced(znew,bins)
     np.save('fwhmx_deduced_cache.npy',fwhmx)
-    np.save('fwhmz_deduced_cache.npy',fwhmz)  
+    np.save('fwhmz_deduced_cache.npy',fwhmz)
+    # print('fwhm_deduced of x:', fwhmx)
+    # print('fwhm_deduced of z:', fwhmz)
