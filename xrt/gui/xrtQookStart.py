@@ -49,5 +49,6 @@ if __name__ == '__main__':
 
     ex = xQ.XrtQook()
     ex.setWindowTitle("xrtQook")
+    ex.setGeometry(100,100,2800,1600)
     ex.show()
     sys.exit(app.exec_())
