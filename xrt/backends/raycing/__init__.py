@@ -1343,11 +1343,47 @@ class BeamLine(object):
                 calc_weighted_center(tBeam)
         return [rayPath, beamDict, oesDict]
 
-def get_fwhm(beam, bins=256):
+def get_filter_limit(beam, label = 'x'):
     good = beam.state == 1
     x0 = beam.x[good]
     z0 = beam.z[good]
 
+    if label == 'x':
+        q25 = np.quantile(x0, 0.25)
+        q75 = np.quantile(x0, 0.75)
+        iqr = q75-q25
+        lower,upper =q25-3*iqr, q75 +3*iqr
+
+    elif label == 'z':
+        q25 = np.quantile(z0, 0.25)
+        q75 = np.quantile(z0, 0.75)
+        iqr = q75-q25
+        lower,upper =q25-3*iqr, q75 +3*iqr
+    return np.array([lower*1e6,upper*1e6])  ##chang to nm unit
+
+
+def get_filter_condition(x,z):
+        
+    q25_x = np.quantile(x, 0.25)
+    q75_x = np.quantile(x, 0.75)
+    iqr_x = q75_x-q25_x
+    lower_x, upper_x =q25_x-3*iqr_x, q75_x +3*iqr_x
+    q25_z = np.quantile(z, 0.25)
+    q75_z = np.quantile(z, 0.75)
+    iqr_z = q75_z-q25_z
+    lower_z, upper_z =q25_z-3*iqr_z, q75_z +3*iqr_z
+    condition = ((x>=lower_x) & (x<=upper_x) & (z>=lower_z) & (z<=upper_z))
+    return condition
+
+
+def get_fwhm(beam, bins=256, filter=False):
+    good = beam.state == 1
+    x0 = beam.x[good]
+    z0 = beam.z[good]
+    if filter:
+        condition = get_filter_condition(x0,z0)
+        x0 = x0[condition]
+        z0 = z0[condition]
     def fwhm(x,bin):
         xx, binEdges = np.histogram(x,bin)
         xxMaxHalf = float(np.max(xx)) * 0.5
@@ -1360,10 +1396,7 @@ def get_fwhm(beam, bins=256):
         return fwhm   
     fwhmx = fwhm(x0,bins) 
     fwhmz = fwhm(z0,bins)
-    np.save('fwhmx_formal_cache.npy',fwhmx)
-    np.save('fwhmz_formal_cache.npy',fwhmz)  
-    # print('fwhm_formal of x:', fwhmx)
-    # print('fwhm_formal of z:', fwhmz)
+    return fwhmx, fwhmz
 
 def get_parmeters(beam):
     good = beam.state == 1
@@ -1423,23 +1456,29 @@ def get_sigma_deduced(beam, label='',bins=256):
     print('sigma_deduced of %s:' % label, sigma)
     get_fwhm_deduced(xnew,bins) 
 
-def get_sigmaS_deduced(beam, bins=256):
+def get_sigmaS_deduced(beam, bins=256,filter=False):
     good = beam.state == 1
     x0 = beam.x[good]
-    x0prime = beam.a[good]/beam.b[good]
     z0 = beam.z[good]
-    z0prime = beam.c[good]/beam.b[good]
+    a = beam.a[good]
+    b = beam.b[good]
+    c = beam.c[good]
+    if filter:
+        condition = get_filter_condition(x0,z0)
+        x0 = x0[condition]
+        z0 = z0[condition]
+        a = a[condition]
+        b = b[condition]
+        c = c[condition]
+    x0prime = a/b
+    z0prime = c/b
 
     mean = np.mean
     L = (mean(x0)*mean(x0prime) + mean(z0)*mean(z0prime) -
           mean(x0*x0prime+z0*z0prime))/(mean(x0prime**2+z0prime**2)-mean(x0prime)**2-mean(z0prime)**2)
 
-    # print('L', L)
-    # print('L2', L2)
     xnew = x0 + x0prime*L
-    # sigmax = np.std(xnew)
     znew = z0 + z0prime*L
-    # sigmaz = np.std(znew)
     def get_fwhm_deduced(x,bin):
         xx, binEdges = np.histogram(x,bin)
         xxMaxHalf = float(np.max(xx)) * 0.5
@@ -1449,17 +1488,7 @@ def get_sigmaS_deduced(beam, bins=256):
         histFWHMlow = binEdges[iHistFWHMlow]
         histFWHMhigh = binEdges[iHistFWHMhigh]
         fwhm = histFWHMhigh - histFWHMlow
-        return fwhm          
-    # print('sigma_deduced of x:', sigmax)
-    # print('sigma_deduced of z:', sigmaz)    
-    # fwhmx = get_fwhm_deduced(xnew,bins) 
-    # fwhmz = get_fwhm_deduced(znew,bins)
-    # print('fwhm_deduced of x:', fwhmx)
-    # print('fwhm_deduced of z:', fwhmz)
-   
+        return fwhm        
     fwhmx = get_fwhm_deduced(xnew,bins) 
     fwhmz = get_fwhm_deduced(znew,bins)
-    np.save('fwhmx_deduced_cache.npy',fwhmx)
-    np.save('fwhmz_deduced_cache.npy',fwhmz)
-    # print('fwhm_deduced of x:', fwhmx)
-    # print('fwhm_deduced of z:', fwhmz)
+    return fwhmx,fwhmz
