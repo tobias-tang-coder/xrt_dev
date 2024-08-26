@@ -383,10 +383,11 @@ class Material(object):
             is constructed from the *elements* and the *quantities*.
 
         *refractiveIndex*: float or complex or numpy array or str
-            Explicitly defines the refractive index of the material. Can be
-            used for the energy ranges not covered by the tables of scattering
-            factors (IR, visible).
-            Can be set as:
+            Material refractive index is calculated from the tabulated
+            scattering factors by :meth:`get_refractive_index`. If the target
+            energy range is not covered by the tables of scattering factors
+            (e.g. at IR or visible energies), refractive index can be
+            externally defined by *refractiveIndex* as:
             a) float or complex value, for a constant, energy-independent
             refractive index.
             b) a 3-column numpy array containing Energy in eV, real and
@@ -2316,6 +2317,8 @@ class CrystalSi(CrystalDiamond):
         kwargs['d'] = self.get_a() / self.sqrthkl2
         kwargs['elements'] = 'Si'
         kwargs['hkl'] = self.hkl
+        if 'name' not in kwargs:
+            kwargs['name'] = 'Si'
 # Mechanics of Materials, 23 (1996), p.314
 #        kwargs['nuPoisson'] = 0.22
         super().__init__(*args, **kwargs)
